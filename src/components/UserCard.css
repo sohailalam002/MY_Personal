@@ -1,0 +1,153 @@
+.user-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  text-align: center;
+  overflow: hidden;
+  height: 100%;
+}
+
+.user-card-status-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.user-card-avatar-wrapper {
+  margin: 16px 0;
+  position: relative;
+}
+
+.user-card-avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 3px solid var(--primary-accent);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.25);
+  transition: var(--transition-normal);
+}
+
+.user-card-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.user-card:hover .user-card-avatar {
+  transform: scale(1.05);
+  box-shadow: var(--glow-shadow);
+  border-color: var(--secondary-accent);
+}
+
+.user-card-info {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.user-card-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.admin-icon {
+  color: var(--primary-accent);
+  filter: drop-shadow(0 0 3px var(--primary-accent));
+}
+
+.user-card-email {
+  font-size: 12px;
+  color: var(--text-gray);
+  margin-top: 4px;
+  margin-bottom: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-card-squad {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 12px;
+}
+
+.info-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.info-value {
+  font-size: 12px;
+  color: #ff8a36;
+  font-weight: 600;
+}
+
+.user-card-kills-stat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 107, 0, 0.08);
+  border: 1px solid rgba(255, 107, 0, 0.15);
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.target-icon {
+  color: var(--primary-accent);
+}
+
+.kills-count {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+
+.kills-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-gray);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.user-card-actions {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.card-action-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.active-admin-tag {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-gray);
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+}
