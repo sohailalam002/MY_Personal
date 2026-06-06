@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Swords, Lock, Mail, AlertTriangle, KeyRound } from "lucide-react";
+import { Swords, Lock, Mail, AlertTriangle } from "lucide-react";
 import "./Login.css";
 
 const Login = () => {
@@ -32,15 +32,7 @@ const Login = () => {
     }, 800); // Small delay for immersive loading experience
   };
 
-  const autofillCredentials = (role) => {
-    if (role === "admin") {
-      setEmail("admin@tungtungsahur.com");
-      setPassword("Admin@123");
-    } else {
-      setEmail("hayato@tungtungsahur.com");
-      setPassword("User@123");
-    }
-  };
+
 
   return (
     <div className="login-page-container">
@@ -103,29 +95,7 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Shortcut Quick Logins for Testing */}
-        <div className="quick-access-section">
-          <div className="quick-access-title">
-            <KeyRound size={12} />
-            <span>Fast Authorization Key</span>
-          </div>
-          <div className="quick-access-buttons">
-            <button
-              onClick={() => autofillCredentials("admin")}
-              className="btn btn-secondary quick-btn"
-              title="Admin account credentials"
-            >
-              Autofill Admin
-            </button>
-            <button
-              onClick={() => autofillCredentials("user")}
-              className="btn btn-secondary quick-btn"
-              title="Standard user credentials"
-            >
-              Autofill Hayato
-            </button>
-          </div>
-        </div>
+
       </div>
     </div>
   );

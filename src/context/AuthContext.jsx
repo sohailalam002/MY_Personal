@@ -3,38 +3,57 @@ import { seedUsers, seedLeaveRequests } from "../data/seedData";
 
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
-  const [users, setUsers] = useState(() => {
-    const savedUsers = localStorage.getItem("tung_tung_users");
-    if (savedUsers) {
-      try {
-        return JSON.parse(savedUsers);
-      } catch (e) {
-        console.error("Failed to parse users from localStorage", e);
-      }
-    }
-    localStorage.setItem("tung_tung_users", JSON.stringify(seedUsers));
-    return seedUsers;
-  });
+// Bump this version whenever seedData changes — forces a localStorage reset
+const DATA_VERSION = "v3";
 
-  const [leaveRequests, setLeaveRequests] = useState(() => {
-    const savedLeaves = localStorage.getItem("tung_tung_leaves");
-    if (savedLeaves) {
-      try {
-        return JSON.parse(savedLeaves);
-      } catch (e) {
-        console.error("Failed to parse leaves from localStorage", e);
-      }
+const initUsers = () => {
+  const storedVersion = localStorage.getItem("tung_tung_version");
+
+  // If version mismatch, wipe old data and re-seed
+  if (storedVersion !== DATA_VERSION) {
+    localStorage.removeItem("tung_tung_users");
+    localStorage.removeItem("tung_tung_leaves");
+    localStorage.removeItem("tung_tung_current_user");
+    localStorage.setItem("tung_tung_version", DATA_VERSION);
+  }
+
+  const saved = localStorage.getItem("tung_tung_users");
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (e) {
+      console.error("Failed to parse users from localStorage", e);
     }
-    localStorage.setItem("tung_tung_leaves", JSON.stringify(seedLeaveRequests));
-    return seedLeaveRequests;
-  });
+  }
+
+  localStorage.setItem("tung_tung_users", JSON.stringify(seedUsers));
+  return seedUsers;
+};
+
+const initLeaves = () => {
+  const saved = localStorage.getItem("tung_tung_leaves");
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+      console.error("Failed to parse leaves from localStorage", e);
+    }
+  }
+  localStorage.setItem("tung_tung_leaves", JSON.stringify(seedLeaveRequests));
+  return seedLeaveRequests;
+};
+
+export const AuthProvider = ({ children }) => {
+  const [users, setUsers] = useState(initUsers);
+  const [leaveRequests, setLeaveRequests] = useState(initLeaves);
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem("tung_tung_current_user");
-    if (savedUser) {
+    const saved = localStorage.getItem("tung_tung_current_user");
+    if (saved) {
       try {
-        return JSON.parse(savedUser);
+        return JSON.parse(saved);
       } catch (e) {
         console.error("Failed to parse current user", e);
       }
@@ -44,7 +63,7 @@ export const AuthProvider = ({ children }) => {
 
   const [notifications, setNotifications] = useState([]);
 
-  // Sync users to localStorage
+  // Sync users to localStorage whenever users state changes
   useEffect(() => {
     localStorage.setItem("tung_tung_users", JSON.stringify(users));
   }, [users]);
@@ -54,82 +73,114 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("tung_tung_leaves", JSON.stringify(leaveRequests));
   }, [leaveRequests]);
 
-  // Sync current user to localStorage
+  // Sync logged-in user to localStorage
   useEffect(() => {
     if (currentUser) {
+      // Always keep the session user in sync with the latest users array
       localStorage.setItem("tung_tung_current_user", JSON.stringify(currentUser));
     } else {
       localStorage.removeItem("tung_tung_current_user");
     }
   }, [currentUser]);
 
-  // Login handler
+  // ── Login ──────────────────────────────────────────────────────────────────
   const login = (email, password) => {
-    const foundUser = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    // Always read from the LATEST localStorage to catch admin-created users
+    let latestUsers = users;
+    try {
+      const raw = localStorage.getItem("tung_tung_users");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          latestUsers = parsed;
+        }
+      }
+    } catch (e) {
+      // fall back to state
+    }
+
+    const foundUser = latestUsers.find(
+      (u) =>
+        u.email.trim().toLowerCase() === email.trim().toLowerCase() &&
+        u.password === password
     );
 
     if (foundUser) {
       setCurrentUser(foundUser);
+      // Keep state in sync if it was stale
+      if (latestUsers !== users) setUsers(latestUsers);
       return { success: true, user: foundUser };
     }
-    return { success: false, message: "Invalid email or password" };
+
+    return { success: false, message: "Invalid email or password. Please check credentials." };
   };
 
-  // Logout handler
+  // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = () => {
     setCurrentUser(null);
   };
 
-  // Add User (Admin only)
+  // ── Add User (Admin only) ──────────────────────────────────────────────────
   const addUser = (userData) => {
     const newUser = {
       id: "user-" + Date.now(),
       name: userData.name,
-      email: userData.email,
-      password: userData.password || "User@123", // default password
+      email: userData.email.trim(),
+      password: userData.password || "User@123",
       role: userData.role || "user",
       squadName: userData.squadName || "Unassigned",
       kills: parseInt(userData.kills || 0, 10),
       status: userData.status || "Active",
-      avatar: userData.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${userData.name}`
+      avatar:
+        userData.avatar ||
+        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(userData.name)}`
     };
 
-    setUsers((prev) => [...prev, newUser]);
-    addNotification(`New user "${newUser.name}" has been registered.`);
+    setUsers((prev) => {
+      const updated = [...prev, newUser];
+      // Immediately persist so login can find the user right away
+      localStorage.setItem("tung_tung_users", JSON.stringify(updated));
+      return updated;
+    });
+
+    addNotification(`New soldier "${newUser.name}" registered. Email: ${newUser.email}`);
     return newUser;
   };
 
-  // Update User (Admin only, or user updating own photo if allowed)
+  // ── Update User ────────────────────────────────────────────────────────────
   const updateUser = (userId, updatedData) => {
-    setUsers((prev) =>
-      prev.map((user) => {
+    setUsers((prev) => {
+      const updated = prev.map((user) => {
         if (user.id === userId) {
           const merged = { ...user, ...updatedData };
-          // If the updated user is the currently logged in user, update their session as well
           if (currentUser && currentUser.id === userId) {
             setCurrentUser(merged);
           }
           return merged;
         }
         return user;
-      })
-    );
-    addNotification(`User "${updatedData.name || userId}" profile updated.`);
+      });
+      localStorage.setItem("tung_tung_users", JSON.stringify(updated));
+      return updated;
+    });
+    addNotification(`Soldier "${updatedData.name || userId}" profile updated.`);
   };
 
-  // Delete User (Admin only)
+  // ── Delete User ────────────────────────────────────────────────────────────
   const deleteUser = (userId) => {
     const userToDelete = users.find((u) => u.id === userId);
     if (userToDelete) {
-      setUsers((prev) => prev.filter((user) => user.id !== userId));
-      // Delete their leave requests too
-      setLeaveRequests((prev) => prev.filter((leave) => leave.userId !== userId));
-      addNotification(`User "${userToDelete.name}" was removed from the system.`);
+      setUsers((prev) => {
+        const updated = prev.filter((u) => u.id !== userId);
+        localStorage.setItem("tung_tung_users", JSON.stringify(updated));
+        return updated;
+      });
+      setLeaveRequests((prev) => prev.filter((l) => l.userId !== userId));
+      addNotification(`Soldier "${userToDelete.name}" dismissed from the squad.`);
     }
   };
 
-  // Submit Leave Request (User only)
+  // ── Submit Leave Request (User only) ───────────────────────────────────────
   const submitLeaveRequest = (leaveDate, reason) => {
     if (!currentUser) return;
     const newRequest = {
@@ -137,56 +188,43 @@ export const AuthProvider = ({ children }) => {
       userId: currentUser.id,
       userName: currentUser.name,
       userAvatar: currentUser.avatar,
-      leaveDate: leaveDate,
-      reason: reason,
+      leaveDate,
+      reason,
       status: "Pending"
     };
-
     setLeaveRequests((prev) => [newRequest, ...prev]);
     addNotification(`Leave request submitted by "${currentUser.name}".`);
   };
 
-  // Approve/Reject Leave Request (Admin only)
+  // ── Approve / Reject Leave ─────────────────────────────────────────────────
   const updateLeaveStatus = (leaveId, status) => {
-    setLeaveRequests((prev) =>
-      prev.map((leave) => {
-        if (leave.id === leaveId) {
-          return { ...leave, status };
-        }
-        return leave;
-      })
-    );
-    
-    // Find request to create custom notification
     const request = leaveRequests.find((l) => l.id === leaveId);
+    setLeaveRequests((prev) =>
+      prev.map((leave) => (leave.id === leaveId ? { ...leave, status } : leave))
+    );
     if (request) {
-      addNotification(`Leave request for "${request.userName}" has been ${status.toLowerCase()}.`);
+      addNotification(
+        `Leave request for "${request.userName}" has been ${status.toLowerCase()}.`
+      );
     }
   };
 
-  // Add a simple in-memory notification
+  // ── Notifications ──────────────────────────────────────────────────────────
   const addNotification = (message) => {
     const newNotif = {
       id: "notif-" + Date.now(),
       message,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       read: false
     };
-    setNotifications((prev) => [newNotif, ...prev].slice(0, 10)); // Keep last 10
+    setNotifications((prev) => [newNotif, ...prev].slice(0, 10));
   };
 
-  const clearNotifications = () => {
-    setNotifications([]);
-  };
+  const clearNotifications = () => setNotifications([]);
 
-  // Derived Leaderboard Data
-  const getLeaderboardData = () => {
-    // Return users sorted by kills descending, excluding admin (or including them if they have kills)
-    // The prompt says "Ranking System Based On Kills", so we sort users by kills descending.
-    return [...users]
-      .filter((u) => u.role !== "admin" || u.kills > 0) // include admin if they have kills, or sort all
-      .sort((a, b) => b.kills - a.kills);
-  };
+  // ── Leaderboard ────────────────────────────────────────────────────────────
+  const getLeaderboardData = () =>
+    [...users].sort((a, b) => b.kills - a.kills);
 
   return (
     <AuthContext.Provider

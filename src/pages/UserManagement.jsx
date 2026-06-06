@@ -91,23 +91,77 @@ const UserManagement = () => {
     setFormData((prev) => ({ ...prev, avatar: url }));
   };
 
-  // Convert uploaded photo file to base64 Data URL for Local Storage saving
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 1.5 * 1024 * 1024) {
-        setFormError("File size exceeds 1.5MB limit. Please upload a smaller photo.");
-        return;
-      }
+  // Compress image using canvas (max 400×400, 80% JPEG quality)
+  // This handles large mobile camera photos (3–10MB) without hitting localStorage limits
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setCustomAvatarBase64(reader.result);
-        setFormData((prev) => ({ ...prev, avatar: reader.result }));
+
+      reader.onerror = () => reject(new Error("Failed to read file"));
+
+      reader.onload = (evt) => {
+        const img = new Image();
+
+        img.onerror = () => reject(new Error("Failed to load image"));
+
+        img.onload = () => {
+          const MAX_SIZE = 400; // max width or height in px
+          let { width, height } = img;
+
+          // Scale down proportionally
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height = Math.round((height * MAX_SIZE) / width);
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width = Math.round((width * MAX_SIZE) / height);
+              height = MAX_SIZE;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Export as JPEG at 80% quality → small base64
+          const compressed = canvas.toDataURL("image/jpeg", 0.8);
+          resolve(compressed);
+        };
+
+        img.src = evt.target.result;
       };
-      reader.onerror = () => {
-        setFormError("Failed to read image file.");
-      };
+
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoUpload = async (e) => {
+    // Reset input value so the same file can be re-selected on mobile
+    const file = e.target.files[0];
+    e.target.value = "";
+
+    if (!file) return;
+
+    // Accept any image regardless of size — canvas will compress it
+    if (!file.type.startsWith("image/")) {
+      setFormError("Please select a valid image file (JPG, PNG, WEBP, etc.).");
+      return;
+    }
+
+    setFormError("");
+
+    try {
+      const compressed = await compressImage(file);
+      setCustomAvatarBase64(compressed);
+      setFormData((prev) => ({ ...prev, avatar: compressed }));
+    } catch (err) {
+      console.error("Image compression failed:", err);
+      setFormError("Could not process image. Please try a different photo.");
     }
   };
 
@@ -259,16 +313,21 @@ const UserManagement = () => {
                   )}
                 </div>
 
-                {/* File Upload Box */}
-                <label className="custom-photo-upload-label">
-                  <Upload size={14} /> Upload Custom Photo
+                {/* File Upload Box — mobile friendly */}
+                <label className="custom-photo-upload-label" style={{ position: "relative" }}>
+                  <Upload size={14} /> Upload Photo from Gallery / Camera
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif,image/*"
                     onChange={handlePhotoUpload}
                     style={{ display: "none" }}
                   />
                 </label>
+                {customAvatarBase64 && (
+                  <p style={{ fontSize: "11px", color: "var(--success)", marginTop: "4px" }}>
+                    ✓ Photo uploaded & compressed successfully
+                  </p>
+                )}
               </div>
 
               {/* Form Input fields */}
